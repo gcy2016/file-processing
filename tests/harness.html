@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>harness</title>
+<script type="module">
+import { runTool } from "../js/worker-client.js";
+import { sniff } from "../js/formats.js";
+window.runTool = runTool; window.sniff = sniff;
+window.load = async (name) => { const r = await fetch("samples/" + name); const b = await r.blob(); return new File([b], name, { type: b.type }); };
+window.ready = true;
+</script>
