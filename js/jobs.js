@@ -92,6 +92,16 @@ async function compressArchive({ file, fmt, mode, outFmt }, onProgress, signal, 
   return { blob: packed.blob, outFmt, notes, partial: failed > 0 };
 }
 
+// 压缩前预估：返回 { bytes, note } 或只有文字说明 { text }
+export async function estimateCompress({ file, fmt, mode }) {
+  const kind = COMPRESS[fmt];
+  if (kind === "image") return runTool("image.estimate", { file, fmt, mode });
+  if (kind === "video") return media.estimateVideo({ file, mode });
+  if (kind === "pdf") return { text: mode === "strong" ? "取决于 PDF 里的图片多少，图片多的通常能节省 50%–90%" : "取决于 PDF 里的图片多少，图片多的通常能节省 20%–60%，纯文字的变化不大" };
+  if (kind === "archive") return { text: "取决于包里的图片、PDF、视频多少" + (mode === "normal" ? "；普通模式只做无损优化，变化通常不大" : "") };
+  return { text: "" };
+}
+
 // ---------- 转换 ----------
 // opts：{ gif, frames, audioVideo, title }
 export async function convertFile({ file, from, to, opts = {} }, onProgress, signal) {
@@ -121,6 +131,9 @@ async function runStep({ cap, from, to }, file, opts, onProgress, signal) {
     case "media.audioToVideo": return media.audioToVideo({ file, opts: opts.audioVideo }, onProgress, signal);
     case "doc.convert": return runTool("doc.convert", { file, from, to, title: opts.title || baseName(file.name) }, onProgress, signal);
     case "data.convert": return runTool("data.convert", { file, from, to }, onProgress, signal);
+    case "pdf.fromDoc": return (await import("./topdf.js")).docToPdf({ file, from }, onProgress, signal);
+    case "pdf.toWord": return (await import("./pdf2word.js")).pdfToWord({ file, to }, onProgress, signal);
+    case "can.convert": return runTool("can.convert", { file, to }, onProgress, signal);
     case "archive.convert": {
       const ex = await runTool("archive.extract", { file, fmt: from, limits: LIMITS }, null, signal);
       onProgress?.(0.4);
@@ -142,7 +155,7 @@ export async function imagesToPdf(items, onProgress, signal) {
 
 // 输出校验：按内容识别出来的格式要和目标一致（文本类格式无法从内容区分，跳过）
 const SAME = { m4a: ["m4a", "mp4"], mov: ["mov", "mp4"], frames: ["zip"], aac: ["aac", "mp3"] };
-const TEXTY = new Set(["md", "txt", "html", "csv", "json"]);
+const TEXTY = new Set(["md", "txt", "html", "csv", "json", "asc"]);
 async function verify(blob, to) {
   if (TEXTY.has(to)) { if (!blob.size) throw new UserError("输出文件是空的，转换失败。"); return; }
   const got = await sniff(blob);

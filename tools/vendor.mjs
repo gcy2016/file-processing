@@ -1,7 +1,7 @@
 // 把网页用到的第三方库打包到 ../vendor/（网页直接引用，不依赖外部 CDN）
 // 用法：cd tools && npm install && npm run vendor
 import { build } from "esbuild";
-import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +39,11 @@ const entries = {
   gs: `import m from "@jspawn/ghostscript-wasm/gs.js"; export default m;`,
   pandoc: `export { createPandocInstance } from "${join(nm, "pandoc-wasm/src/core.js").replaceAll("\\", "/")}";`,
   xlsx: `export * from "xlsx/xlsx.mjs";`,
+  // 文档转 PDF：渲染 Word、截图成页面
+  "docx-preview": `export { renderAsync } from "docx-preview";`,
+  html2canvas: `export { default } from "html2canvas-pro";`,
+  // PDF 转 Word：生成 DOCX
+  docx: `export { Document, Packer, Paragraph, TextRun, HeadingLevel, PageBreak, AlignmentType } from "docx";`,
 };
 
 for (const [name, code] of Object.entries(entries)) {
@@ -78,4 +83,34 @@ const wasm = {
   "pandoc.wasm": "pandoc-wasm/src/pandoc.wasm",
 };
 for (const [to, from] of Object.entries(wasm)) copyFileSync(join(nm, from), join(out, to));
+
+// 整目录复制的组件（带自己的加载器，不打包）
+const dirs = {
+  // pdf.js：用 legacy 版本兼容旧一些的 Safari；cmaps 用于中文 PDF 的文字提取
+  "pdfjs/pdf.min.mjs": "pdfjs-dist/legacy/build/pdf.min.mjs",
+  "pdfjs/pdf.worker.min.mjs": "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  "pdfjs/cmaps": "pdfjs-dist/cmaps",
+  "pdfjs/standard_fonts": "pdfjs-dist/standard_fonts",
+  "pdfjs/wasm": "pdfjs-dist/wasm",
+  // Tesseract OCR：扫描件识别文字（简体中文 + 英文，best_int 模型）
+  "tess/tesseract.esm.min.js": "tesseract.js/dist/tesseract.esm.min.js",
+  "tess/worker.min.js": "tesseract.js/dist/worker.min.js",
+  "tess/core/tesseract-core-lstm.wasm.js": "tesseract.js-core/tesseract-core-lstm.wasm.js",
+  "tess/core/tesseract-core-simd-lstm.wasm.js": "tesseract.js-core/tesseract-core-simd-lstm.wasm.js",
+  "tess/core/tesseract-core-relaxedsimd-lstm.wasm.js": "tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js",
+  "tess/lang/chi_sim.traineddata.gz": "@tesseract.js-data/chi_sim/4.0.0_best_int/chi_sim.traineddata.gz",
+  "tess/lang/eng.traineddata.gz": "@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz",
+  // Pyodide（浏览器里的 Python）：运行 python-can 把 BLF 转成文本
+  "pyodide/pyodide.mjs": "pyodide/pyodide.mjs",
+  "pyodide/pyodide.asm.js": "pyodide/pyodide.asm.js",
+  "pyodide/pyodide.asm.wasm": "pyodide/pyodide.asm.wasm",
+  "pyodide/python_stdlib.zip": "pyodide/python_stdlib.zip",
+  "pyodide/pyodide-lock.json": "pyodide/pyodide-lock.json",
+};
+for (const [to, from] of Object.entries(dirs)) {
+  mkdirSync(dirname(join(out, to)), { recursive: true });
+  cpSync(join(nm, from), join(out, to), { recursive: true });
+}
+// python-can 及其依赖的 wheel（由 tools/fetch-wheels.sh 下载到 tools/wheels/）
+cpSync(join(here, "wheels"), join(out, "pyodide/wheels"), { recursive: true });
 console.log("vendor 完成：", out);

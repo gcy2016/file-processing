@@ -109,16 +109,29 @@ async function runConversion(file, fmt, { video, audio, onProgress, signal }) {
 
 // ---------- 压缩 ----------
 // normal：短边最多 1080，码率适中；strong：短边最多 720、最高 30 帧、码率更低
+function videoPlan(info, mode) {
+  const cfg = mode === "strong" ? { short: 720, bpp: 0.05, fps: 30, abr: 96000 } : { short: 1080, bpp: 0.085, fps: 60, abr: 128000 };
+  const k = Math.min(1, cfg.short / Math.min(info.w, info.h));
+  const w = even(info.w * k), h = even(info.h * k);
+  const fps = Math.min(info.fps, cfg.fps);
+  const bitrate = Math.max(300000, Math.round(cfg.bpp * w * h * fps));
+  return { cfg, w, h, bitrate, bytes: (bitrate + (info.hasAudio ? cfg.abr : 0)) * info.dur / 8 };
+}
+
+// 压缩前预估输出大小（按目标码率计算）
+export async function estimateVideo({ file, mode }) {
+  const info = await probe(file);
+  if (!info.hasVideo) throw new UserError("这个文件里没有视频画面。");
+  const p = videoPlan(info, mode);
+  return { bytes: Math.round(p.bytes), note: resNote(info, p) };
+}
+const resNote = (info, p) => p.w < info.w ? `分辨率 ${info.w}×${info.h} → ${p.w}×${p.h}` : "";
+
 export async function compressVideo({ file, mode }, onProgress, signal) {
   const M = await mb();
   const info = await probe(file);
   if (!info.hasVideo) throw new UserError("这个文件里没有视频画面。");
-  const cfg = mode === "strong" ? { short: 720, bpp: 0.05, fps: 30, abr: 96000 } : { short: 1080, bpp: 0.085, fps: 60, abr: 128000 };
-  const short = Math.min(info.w, info.h);
-  const k = Math.min(1, cfg.short / short);
-  const w = even(info.w * k), h = even(info.h * k);
-  const fps = Math.min(info.fps, cfg.fps);
-  const bitrate = Math.max(300000, Math.round(cfg.bpp * w * h * fps));
+  const { cfg, w, h, bitrate } = videoPlan(info, mode);
   const codec = await M.getFirstEncodableVideoCodec(["avc", "hevc", "vp9"], { width: w, height: h, bitrate });
   if (!codec) throw new UserError("这个浏览器不支持视频编码。请更新系统，或用电脑上最新版的 Chrome 打开。");
   const aac = await ensureAudioEncoder("aac");

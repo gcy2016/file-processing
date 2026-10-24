@@ -33,12 +33,14 @@
 | 视频 → 音频、→ GIF、→ 图片序列（ZIP） | ✅ |
 | 音频 MP3 / M4A / AAC / WAV / FLAC / OGG 互转 | ✅ |
 | MP3 等音频 → MP4（封面图 / 纯色 / 波形） | ✅ |
-| DOCX / Markdown / HTML / EPUB / TXT 互转（pandoc，约 16 MB，用到时才下载） | ✅（部分：复杂排版会丢失） |
+| DOCX / Markdown / HTML / EPUB / TXT / ODT 互转（pandoc，约 16 MB，用到时才下载） | ✅（部分：复杂排版会丢失） |
 | CSV / JSON / XLSX 互转 | ✅ |
 | 压缩包格式互转（ZIP / 7Z / TAR / TAR.GZ，RAR 只读） | ✅ |
-| Office → PDF | ❌ 首版未上线：没有可以自行托管、在浏览器里稳定运行的 LibreOffice，评估后不上线（PRD 允许） |
+| Word / Excel / CSV / PPT / Markdown / HTML / TXT / EPUB / ODT → PDF（**图片式，不可编辑**：在网页里排版后按页截图，中文用手机自带字体） | ✅（部分：PPT 为简易渲染，只含文字、图片、色块、表格） |
+| PDF → Word / TXT（提取文字和段落、按字号识别标题；扫描页自动 OCR，简体中文 + 英文） | ✅（部分：表格、图片、排版不保留） |
+| BLF（Vector CAN 日志）→ ASC / CSV / TXT（浏览器里用 Pyodide 运行 python-can；ASC、TXT 与本机 python-can 输出逐字一致） | ✅ |
 | AVI 读取 | ❌ 所用音视频库不支持 AVI |
-| PPTX 任何转换 | ❌ |
+| 旧版 DOC / XLS / PPT（二进制格式） | ❌ |
 
 转换由能力注册表（`js/registry.js`）规划路径，最多 3 步（例如 HEIC → JPG → PDF）；每一步的输出按文件内容校验格式。
 
@@ -67,7 +69,7 @@ tests/                测试样例生成脚本与自动化测试（Playwright）
 1. 代码需要放在**公开仓库**（AGPL 要求公开源代码；免费账号的私有仓库也不能开 Pages）。
 2. 仓库 Settings → Pages → Source 选 “Deploy from a branch”，分支选 main，目录选 `/ (root)`，保存。
 3. 几分钟后访问 `https://<用户名>.github.io/<仓库名>/`。
-4. 换仓库时，把 `js/about.js` 里的 `SOURCE_URL` 改成新的公开仓库地址（页面底部“源代码与许可”会显示它）。当前是 `gcy2016/workspace-12`。
+4. 换仓库时，把 `js/about.js` 里的 `SOURCE_URL` 改成新的公开仓库地址（页面底部“源代码与许可”会显示它）。当前是 `gcy2016/file-processing`。
 
 仓库里的 `pandoc.wasm` 约 56 MB，推送时 GitHub 会提示“超过 50 MB 建议值”，不影响使用（硬上限 100 MB）。
 
@@ -77,7 +79,7 @@ tests/                测试样例生成脚本与自动化测试（Playwright）
 python3 -m http.server 8765          # 在仓库根目录；浏览器打开 http://localhost:8765
 ```
 
-更新第三方库：`cd tools && npm install && npm run vendor`
+更新第三方库：`cd tools && npm install && ./fetch-wheels.sh && npm run vendor`（`fetch-wheels.sh` 下载 python-can 等 wheel）
 
 自动化测试（需要 Playwright + Chromium、ffmpeg、pandoc）：
 
@@ -89,9 +91,16 @@ node img.test.mjs                    # 图片：压缩、互转、HEIC、转 PDF
 node pdf.test.mjs photos.pdf text.pdf
 node media.test.mjs '<用例 JSON>'    # 音视频，用法见文件内
 node ui.test.mjs                     # 用 iPhone 13 尺寸走完整流程并截图到 tests/out/
+node new.test.mjs                    # 文档 → PDF、PDF → Word / TXT、BLF → ASC / CSV / TXT
+node est.test.mjs                    # 压缩前预估 vs 实际结果、删除结果
 ```
 
 ## 已知限制
+
+- 文档转 PDF 是图片式 PDF，文字不能选中、搜索；分页按网页排版计算，和 Word 里不一定完全一致；Word 内容超过一页时，后续页不重复页眉页脚。
+- PPT 转 PDF 为自写的简易渲染：动画、图表、SmartArt、艺术字、渐变等不渲染。（现成的 `pptx-preview` 库许可不允许公开发布源码，没有采用。）
+- PDF 转 Word 只提取文字；扫描页 OCR 在手机上每页需要几秒到十几秒。
+- BLF 转换在浏览器里运行 Python，大文件（几百万条报文）会比较慢，内存占用约为输出文本大小的 2–3 倍。
 
 - 处理速度取决于设备；手机处理视频时切到后台或锁屏可能中断（页面会提示）。
 - 部分电脑浏览器解码不了 iPhone 的 HEVC 视频，这时会明确报错，提示换 iPhone Safari 或新版 Chrome / Edge。

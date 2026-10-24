@@ -48,11 +48,16 @@ button, input, select { font: inherit; color: inherit; }
   padding: max(14px, env(safe-area-inset-top)) 0 10px;
 }
 .brand { font-size: 22px; font-weight: 700; color: var(--ink); text-decoration: none; letter-spacing: .04em; }
-.top-nav { display: flex; gap: 4px; }
-.top-nav a {
-  text-decoration: none; color: var(--muted); padding: 6px 12px; border-radius: 999px; font-size: 15px;
+/* 右上角"压缩 / 转换"切换：分段按钮，当前页实心高亮 */
+.top-nav {
+  display: flex; padding: 3px; border-radius: 999px;
+  background: var(--surface); border: 1.5px solid var(--accent);
 }
-.top-nav a.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.top-nav a {
+  text-decoration: none; color: var(--accent); padding: 7px 18px; border-radius: 999px;
+  font-size: 16px; font-weight: 600; min-height: 36px; display: flex; align-items: center;
+}
+.top-nav a.on { background: var(--accent); color: var(--accent-ink); }
 
 main { max-width: 720px; width: 100%; margin: 0 auto; flex: 1; display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px; }
 main:focus { outline: none; }
@@ -153,8 +158,8 @@ h2 { font-size: 17px; margin: 0; }
 .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; }
 .stats b { font-weight: 600; }
 .job ul.sub { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
-.job video, .job img.preview, .job audio { max-width: 100%; border-radius: 8px; background: #000; }
-.job img.preview { background: var(--bg); max-height: 280px; object-fit: contain; }
+.job img.preview, .job audio { max-width: 100%; border-radius: 8px; }
+.job img.preview { background: var(--bg); max-height: 180px; width: auto; object-fit: contain; align-self: flex-start; }
 
 .doc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 18px 12px; }
 .doc h2 { margin-top: 16px; }
@@ -166,3 +171,6 @@ h2 { font-size: 17px; margin: 0; }
 .foot-links { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
 .foot-links a { color: var(--muted); }
 .noscript { text-align: center; padding: 24px; }
+
+.estimate { font-size: 14px; color: var(--ink); }
+.estimate b { color: var(--accent); }

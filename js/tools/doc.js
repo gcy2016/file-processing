@@ -26,13 +26,13 @@ async function load(progress) {
   return pandoc;
 }
 
-const READER = { docx: "docx", md: "markdown", html: "html", epub: "epub", txt: "markdown" };
+const READER = { docx: "docx", md: "markdown", html: "html", epub: "epub", txt: "markdown", odt: "odt" };
 const WRITER = { docx: "docx", md: "gfm-raw_html", html: "html", epub: "epub3", txt: "plain" };
 const MIME = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   md: "text/markdown;charset=utf-8", html: "text/html;charset=utf-8", epub: "application/epub+zip", txt: "text/plain;charset=utf-8",
 };
-const BINARY_IN = new Set(["docx", "epub"]);
+const BINARY_IN = new Set(["docx", "epub", "odt"]);
 
 async function readText(file) {
   const buf = new Uint8Array(await file.arrayBuffer());

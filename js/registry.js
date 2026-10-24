@@ -9,7 +9,7 @@ const VID_IN = ["mp4", "mov", "webm", "mkv", "ts"];
 const VID_OUT = ["mp4", "mov", "webm", "mkv"];
 const AUD_IN = ["mp3", "m4a", "aac", "wav", "flac", "ogg"];
 const AUD_OUT = ["mp3", "m4a", "aac", "wav", "flac", "ogg"];
-const DOC_IN = ["docx", "md", "html", "epub", "txt"];
+const DOC_IN = ["docx", "md", "html", "epub", "txt", "odt"];
 const DOC_OUT = ["docx", "md", "html", "epub", "txt"];
 const DATA = ["csv", "json", "xlsx"];
 const ARC_IN = ["zip", "7z", "tar", "tgz", "rar"];
@@ -41,6 +41,16 @@ export const CAPABILITIES = [
     loss: "只转换数据，不保留单元格格式、公式（保留计算结果）和图表。多个工作表转 CSV 时只导出第一个。" },
   { id: "archive", from: ARC_IN, to: ARC_OUT, run: "archive.convert", status: "full", tool: "7-Zip",
     loss: "真实解包后重新打包，目录结构和文件名保留；文件修改时间和权限不保留。" },
+  // terminal：输出不再作为下一步的输入（避免规划出 Word → PDF → Word 这类绕路）
+  { id: "doc-pdf", from: ["docx", "pptx", "xlsx", "csv", "md", "html", "txt", "epub", "odt"], to: ["pdf"], run: "pdf.fromDoc", status: "partial", terminal: true,
+    tool: "docx-preview、SheetJS、pandoc、html2canvas、pdf-lib（PPT 为自写简易渲染）",
+    loss: "生成的是图片式 PDF，文字不能选中、搜索或编辑；排版按网页效果生成，可能和原软件里略有差别。" },
+  { id: "pdf-word", from: ["pdf"], to: ["docx", "txt"], run: "pdf.toWord", status: "partial", terminal: true,
+    tool: "pdf.js、Tesseract.js（OCR）、docx",
+    loss: "提取 PDF 里的文字和段落，按字号识别标题；表格、图片、原排版不保留。扫描件会自动做文字识别（简体中文和英文），速度较慢、可能有错字。" },
+  { id: "blf", from: ["blf"], to: ["asc", "csv", "txt"], run: "can.convert", status: "full", terminal: true,
+    tool: "python-can（在浏览器里用 Pyodide 运行）",
+    loss: "ASC 是 Vector 标准文本格式（CANoe / CANalyzer 能打开）；CSV 每行一条报文，数据为十六进制；TXT 与 python-can 打印格式一致。首次使用需下载约 6 MB 的组件。" },
 ];
 
 // 虚拟目标格式：视频截图打包
@@ -58,7 +68,7 @@ export function plan(from, to, maxSteps = 3) {
     if (path.length >= maxSteps) continue;
     for (const cap of edgesFrom(fmt)) {
       if (cap.to.includes(to)) return [...path, { cap, from: fmt, to }];
-      if (cap.needs) continue;
+      if (cap.needs || cap.terminal) continue;
       for (const next of cap.to) {
         if (seen.has(next) || FORMATS[next]?.virtual) continue;
         seen.add(next);
@@ -86,6 +96,5 @@ export const COMPRESS = {
 // 首版不支持但用户可能会选的格式，给出具体原因
 export const UNSUPPORTED_REASON = {
   avi: "首版暂不支持读取 AVI 视频。可以先用其他工具转成 MP4。",
-  pptx: "PPT 转换（包括转 PDF）首版暂不支持。",
   bmp: null,
 };

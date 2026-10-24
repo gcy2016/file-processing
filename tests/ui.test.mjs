@@ -8,7 +8,7 @@ const errors = [];
 page.on("pageerror", e => errors.push(e.message));
 page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
 const S = n => "samples/" + n;
-const base = "http://localhost:8765/";
+const base = process.env.BASE || "http://localhost:8766/";
 const wait = (sel, ms = 240000) => page.waitForFunction(s => {
   const st = [...document.querySelectorAll(".jobs .job-status")].map(e => e.textContent);
   return st.length && st.every(t => /^完成|^失败|^部分成功/.test(t));

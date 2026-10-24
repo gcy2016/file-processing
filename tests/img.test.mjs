@@ -2,7 +2,7 @@ import { createRequire } from "node:module"; const { chromium } = createRequire(
 const page = await (await chromium.launch()).newPage();
 page.on("console", m => console.log("[console]", m.text()));
 page.on("pageerror", e => console.log("[pageerror]", e.message));
-await page.goto("http://localhost:8765/tests/harness.html");
+await page.goto((process.env.BASE || "http://localhost:8766/") + "tests/harness.html");
 await page.waitForFunction(() => window.ready);
 const r = await page.evaluate(async () => {
   const out = [];

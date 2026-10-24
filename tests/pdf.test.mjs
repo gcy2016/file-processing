@@ -1,7 +1,7 @@
 import { createRequire } from "node:module"; const { chromium } = createRequire(import.meta.url)(process.env.PW || "playwright");
 const page = await (await chromium.launch()).newPage();
 page.on("pageerror", e => console.log("[pageerror]", e.message));
-await page.goto("http://localhost:8765/tests/harness.html");
+await page.goto((process.env.BASE || "http://localhost:8766/") + "tests/harness.html");
 await page.waitForFunction(() => window.ready);
 const names = process.argv.length > 2 ? process.argv.slice(2) : ["photos.pdf", "text.pdf"];
 const r = await page.evaluate(async (names) => {

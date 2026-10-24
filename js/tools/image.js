@@ -176,6 +176,21 @@ export async function compress({ file, fmt, mode }) {
   return { blob: toBlob(out, outFmt), outFmt, notes };
 }
 
+// 压缩前预估输出大小：按实际设置编码图片中间一块（真实分辨率），按像素数推算整张
+export async function estimate({ file, fmt, mode }) {
+  if (fmt === "png" && mode !== "strong") return { text: "无损优化，通常能节省 5%–30%" };
+  let img = await decode(file, fmt);
+  if (mode === "strong") img = fitInside(img, STRONG_MAX_SIDE);
+  const cw = Math.min(img.width, 1024), ch = Math.min(img.height, 1024);
+  const c = new OffscreenCanvas(img.width, img.height);
+  c.getContext("2d").putImageData(img, 0, 0);
+  const crop = c.getContext("2d").getImageData((img.width - cw) >> 1, (img.height - ch) >> 1, cw, ch);
+  const outFmt = fmt === "heic" ? "jpg" : fmt;
+  const q = mode === "strong" ? { jpg: 65, webp: 62 } : { jpg: 82, webp: 80 };
+  const bytes = (await encode(crop, outFmt, outFmt === "png" ? { lossyPng: true } : { quality: q[outFmt] })).byteLength;
+  return { bytes: Math.round(bytes / (cw * ch) * img.width * img.height) };
+}
+
 // 多张图片 → 一个 PDF（每张一页，页面尺寸与图片一致）
 export async function toPdf({ files }, progress) {
   const { PDFDocument } = await import(V + "pdflib.js");

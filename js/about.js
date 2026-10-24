@@ -1,6 +1,6 @@
 // 源代码地址与第三方工具许可（"源代码与许可"页面用）
 // 公开源代码仓库（AGPL 要求）
-export const SOURCE_URL = "https://github.com/gcy2016/workspace-12";
+export const SOURCE_URL = "https://github.com/gcy2016/file-processing";
 
 // [名称, 项目地址, 用途, 许可]
 export const LIBRARIES = [
@@ -19,5 +19,12 @@ export const LIBRARIES = [
   ["pdf-lib", "https://github.com/Hopding/pdf-lib", "图片合成 PDF", "MIT"],
   ["fflate", "https://github.com/101arrowz/fflate", "打包下载 ZIP", "MIT"],
   ["pandoc（pandoc-wasm）", "https://github.com/jgm/pandoc", "文档互转", "GPL-2.0-or-later"],
-  ["SheetJS Community Edition", "https://github.com/SheetJS/sheetjs", "表格数据互转", "Apache-2.0"],
+  ["SheetJS Community Edition", "https://github.com/SheetJS/sheetjs", "表格数据互转、表格转 PDF", "Apache-2.0"],
+  ["docx-preview", "https://github.com/VolodymyrBaydalka/docxjs", "Word 转 PDF 时渲染文档", "Apache-2.0"],
+  ["html2canvas-pro", "https://github.com/yorickshan/html2canvas-pro", "文档转 PDF 时截取页面", "MIT"],
+  ["PDF.js", "https://github.com/mozilla/pdf.js", "PDF 转 Word 时提取文字", "Apache-2.0"],
+  ["Tesseract.js（Tesseract OCR）", "https://github.com/naptha/tesseract.js", "扫描版 PDF 文字识别", "Apache-2.0"],
+  ["docx", "https://github.com/dolanmiu/docx", "生成 Word 文档", "MIT"],
+  ["Pyodide", "https://github.com/pyodide/pyodide", "在浏览器里运行 Python", "MPL-2.0"],
+  ["python-can（packaging、typing_extensions）", "https://github.com/hardbyte/python-can", "BLF 转 ASC / CSV / TXT", "LGPL-3.0（依赖为 Apache-2.0 / BSD、PSF）"],
 ];

@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p samples && cd samples
-pip install -q pillow pillow-heif py7zr pyzipper reportlab openpyxl
+pip install -q pillow pillow-heif py7zr pyzipper reportlab openpyxl python-docx python-pptx python-can
 
 python3 - <<'EOF'
 import random, os, shutil, zipfile, tarfile, gzip
@@ -100,4 +100,61 @@ for l in sys.stdin.read().splitlines():
     if s and l: out+=binascii.a2b_uu(l)
 open('$dst.rar','wb').write(out)" || echo "（RAR 样例下载失败，跳过）"
 done
+# 中文 Word、PPT、中文 PDF、扫描版 PDF、BLF（文档转 PDF、PDF 转 Word、BLF 转文本用）
+python3 - <<'EOF2'
+import random, can
+from docx import Document
+from docx.shared import Inches
+from pptx import Presentation
+from pptx.util import Inches as PI, Pt
+from pptx.dml.color import RGBColor
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from PIL import Image, ImageDraw, ImageFont
+
+d = Document()
+d.sections[0].header.paragraphs[0].text = "页眉：轻压测试文档"; d.sections[0].footer.paragraphs[0].text = "页脚 第 1 页"
+d.add_heading("一、中文标题测试", level=1)
+p = d.add_paragraph("这是一段中文正文，包含"); p.add_run("加粗").bold = True; p.add_run("文字。English mixed 混排。")
+t = d.add_table(rows=3, cols=3); t.style = "Table Grid"
+for i, row in enumerate([["姓名", "部门", "电话"], ["张三", "研发部", "13800000000"], ["李四", "市场部", "13900000000"]]):
+    for j, v in enumerate(row): t.cell(i, j).text = v
+d.add_picture("alpha.png", width=Inches(3)); d.add_page_break(); d.add_heading("二、第二页", level=1)
+for i in range(30): d.add_paragraph(f"第 {i+1} 段：床前明月光，疑是地上霜。举头望明月，低头思故乡。")
+d.save("zh.docx")
+
+pr = Presentation(); pr.slide_width, pr.slide_height = PI(13.333), PI(7.5)
+s = pr.slides.add_slide(pr.slide_layouts[0]); s.shapes.title.text = "季度汇报"; s.placeholders[1].text = "轻压测试 · 2026"
+s2 = pr.slides.add_slide(pr.slide_layouts[5]); s2.shapes.title.text = "第二页：要点"
+tf = s2.shapes.add_textbox(PI(1), PI(2), PI(6), PI(3)).text_frame; tf.text = "第一点：中文显示正常"
+para = tf.add_paragraph(); para.text = "第二点：English text"; para.runs[0].font.size = Pt(28); para.runs[0].font.color.rgb = RGBColor(0xC0, 0x20, 0x20)
+r = s2.shapes.add_shape(1, PI(8), PI(2), PI(3), PI(2)); r.fill.solid(); r.fill.fore_color.rgb = RGBColor(0x0D, 0x7A, 0x5F); r.text_frame.text = "色块"
+s2.shapes.add_picture("alpha.png", PI(8), PI(4.5), PI(2))
+tb = s2.shapes.add_table(3, 3, PI(1), PI(5.2), PI(6), PI(1.2)).table
+for i in range(3):
+    for j in range(3): tb.cell(i, j).text = f"单元{i}{j}"
+pr.save("deck.pptx")
+
+pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+c = canvas.Canvas("zh_text.pdf"); c.setFont("STSong-Light", 22); c.drawString(72, 760, "第一章 测试标题"); c.setFont("STSong-Light", 12)
+y = 720
+for i in range(6):
+    c.drawString(72, y, f"这是第{i+1}段的第一行文字，用于测试中文 PDF 的文字提取效果，"); y -= 16
+    c.drawString(72, y, "这是同一段的第二行。"); y -= 30
+c.showPage(); c.setFont("STSong-Light", 12); c.drawString(72, 760, "第二页的内容 Hello World"); c.save()
+
+f = ImageFont.truetype("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 40)   # 需要文泉驿字体
+im = Image.new("L", (1654, 2339), 255); dr = ImageDraw.Draw(im)
+for k, line in enumerate(["扫描件测试：床前明月光", "Scanned page with English text.", "疑是地上霜，举头望明月。"]):
+    dr.text((150, 200 + k * 100), line, font=f, fill=0)
+im.save("scan.pdf", resolution=200)
+
+random.seed(2)
+with can.BLFWriter("can.blf") as w:
+    for i in range(50000):
+        ext, fd = i % 7 == 0, i % 11 == 0
+        w.on_message_received(can.Message(timestamp=1700000000.0 + i * 0.001, arbitration_id=random.randint(0, 0x1FFFFFFF if ext else 0x7FF),
+            is_extended_id=ext, is_fd=fd, data=bytes(random.randint(0, 255) for _ in range(16 if fd else 8)), channel=1 + i % 2))
+EOF2
 echo "样例已生成：$(pwd)"

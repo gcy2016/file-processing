@@ -4,11 +4,12 @@ import { FORMATS } from "./formats.js";
 import { isMobile } from "./env.js";
 
 export class Queue {
-  constructor(listEl, { onIdle } = {}) {
+  constructor(listEl, { onIdle, onChange } = {}) {
     this.listEl = listEl;
     this.jobs = [];
     this.running = false;
     this.onIdle = onIdle;
+    this.onChange = onChange;
   }
 
   // job：{ title, size, kind, run(onProgress, signal) → { blob, outFmt, notes, unchanged, partial }, outName(outFmt), compare }
@@ -51,21 +52,41 @@ export class Queue {
       this.refresh();
       try {
         job.result = await job.run(p => job.card.progress(p), job.ctrl.signal);
+        if (job.state === "removed") continue;
         job.state = job.result.partial ? "partial" : "done";
       } catch (e) {
+        if (job.state === "removed") continue;
         job.state = "failed";
         job.error = job.ctrl.signal.aborted ? "已取消。" : errMsg(e);
         console.error(e);
       }
+      if (job.state === "removed") continue;
       job.card.update({});
       this.refresh();
+      this.onChange?.();
     }
     lock?.release?.().catch(() => {});
     this.running = false;
     this.onIdle?.();
   }
 
+  // 删除一个任务（处理中的先取消）
+  remove(job) {
+    if (job.state === "running") job.ctrl?.abort();
+    job.state = "removed";
+    job.card.dispose();
+    this.jobs = this.jobs.filter(j => j !== job);
+    this.refresh();
+    this.onChange?.();
+  }
+
+  // 清空已结束（完成 / 失败）的任务
+  clearFinished() {
+    for (const j of this.jobs.filter(j => ["done", "partial", "failed"].includes(j.state))) this.remove(j);
+  }
+
   doneJobs() { return this.jobs.filter(j => j.state === "done" || j.state === "partial"); }
+  finishedJobs() { return this.jobs.filter(j => ["done", "partial", "failed"].includes(j.state)); }
 }
 
 function renderCard(job, queue) {
@@ -75,8 +96,10 @@ function renderCard(job, queue) {
   const bar = el("div.bar", el("i"));
   const body = el("div");
   const actions = el("div.row");
-  const root = el("li.job", el("div.job-head", name, meta), status, bar, body, actions);
+  const del = el("button.x", { type: "button", "aria-label": "删除这个结果", title: "删除", onclick: () => queue.remove(job) }, "×");
+  const root = el("li.job", el("div.job-head", name, el("div.row", meta, del)), status, bar, body, actions);
   let lastPct = -1;
+  const urls = [];
 
   const cancel = el("button.btn.ghost", { type: "button", onclick: () => job.ctrl?.abort() }, "取消");
 
@@ -132,7 +155,7 @@ function renderCard(job, queue) {
     }
     body.append(stats);
     if (r.notes?.length) body.append(el("ul.sub", r.notes.map(n => el("li", n))));
-    const preview = makePreview(r.blob, r.outFmt);
+    const preview = makePreview(r.blob, r.outFmt, urls);
     if (preview) body.append(preview);
 
     actions.append(el("button.btn.small", { type: "button", onclick: () => downloadBlob(r.blob, outName) }, "下载"));
@@ -143,21 +166,23 @@ function renderCard(job, queue) {
     actions.append(el("span.hint", outName));
   }
 
-  return { root, update, progress };
+  function dispose() {
+    root.remove();
+    urls.forEach(u => URL.revokeObjectURL(u));
+  }
+
+  return { root, update, progress, dispose };
 }
 
-function makePreview(blob, fmt) {
+// 结果预览：图片显示缩略图，音频显示播放条；视频不预览（太占地方）
+function makePreview(blob, fmt, urls) {
   const kind = FORMATS[fmt]?.kind;
   if (kind === "image" && blob.size < 30 * 1048576 && fmt !== "tiff") {
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob); urls.push(url);
     return el("img.preview", { src: url, alt: "预览", loading: "lazy", onerror: e => e.target.remove() });
   }
-  if (kind === "video") {
-    const url = URL.createObjectURL(blob);
-    return el("video", { src: url, controls: true, playsInline: true, preload: "metadata", onerror: e => e.target.remove() });
-  }
   if (kind === "audio") {
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob); urls.push(url);
     return el("audio", { src: url, controls: true, preload: "metadata", onerror: e => e.target.remove() });
   }
   return null;

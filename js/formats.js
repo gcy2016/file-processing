@@ -39,14 +39,18 @@ export const FORMATS = {
   epub: { label: "EPUB", ext: "epub", mime: "application/epub+zip", kind: "document" },
   txt:  { label: "TXT",  ext: "txt",  mime: "text/plain", kind: "document" },
   pptx: { label: "PPT (PPTX)", ext: "pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", kind: "document" },
+  odt:  { label: "ODT",  ext: "odt",  mime: "application/vnd.oasis.opendocument.text", kind: "document" },
 
   xlsx: { label: "Excel (XLSX)", ext: "xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", kind: "data" },
   csv:  { label: "CSV",  ext: "csv",  mime: "text/csv", kind: "data" },
   json: { label: "JSON", ext: "json", mime: "application/json", kind: "data" },
+
+  blf:  { label: "BLF",  ext: "blf",  mime: "application/octet-stream", kind: "can" },
+  asc:  { label: "ASC（Vector 文本）", ext: "asc", mime: "text/plain", kind: "can" },
 };
 
 export const KIND_LABEL = {
-  image: "图片", video: "视频", audio: "音频", pdf: "PDF", archive: "压缩包", document: "文档", data: "表格数据",
+  image: "图片", video: "视频", audio: "音频", pdf: "PDF", archive: "压缩包", document: "文档", data: "表格数据", can: "CAN 总线日志",
 };
 
 const ascii = (b, start, len) => String.fromCharCode(...b.subarray(start, start + len));
@@ -78,6 +82,7 @@ export async function sniff(file) {
   if (b[0] === 0xff && (b[1] & 0xf6) === 0xf0) return "aac";       // ADTS
   if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return "mp3";       // MPEG 音频帧
   if (ascii(b, 0, 5) === "%PDF-") return "pdf";
+  if (ascii(b, 0, 4) === "LOGG") return "blf";                       // Vector BLF 二进制日志
   if (starts(b, [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c])) return "7z";
   if (ascii(b, 0, 4) === "Rar!") return "rar";
   if (starts(b, [0x1f, 0x8b])) return "tgz";                        // gzip，按 tar.gz 处理
@@ -91,6 +96,7 @@ export async function sniff(file) {
   if (/^<!doctype html|^<html[\s>]/i.test(t)) return "html";
   if (/^[{[]/.test(t) && (name.endsWith(".json") || looksJson(t))) return "json";
   if (name.endsWith(".csv")) return "csv";
+  if (name.endsWith(".asc")) return "asc";
   if (name.endsWith(".md") || name.endsWith(".markdown")) return "md";
   if (name.endsWith(".html") || name.endsWith(".htm")) return "html";
   if (name.endsWith(".txt") || name.endsWith(".text")) return "txt";
@@ -119,6 +125,7 @@ async function zipKind(file, b) {
   if (s.includes("xl/workbook.xml")) return "xlsx";
   if (s.includes("ppt/presentation.xml")) return "pptx";
   if (s.includes("mimetypeapplication/epub+zip")) return "epub";
+  if (s.includes("application/vnd.oasis.opendocument.text")) return "odt";
   return "zip";
 }
 

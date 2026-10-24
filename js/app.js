@@ -1,10 +1,10 @@
 // 页面：首页 / 压缩 / 转换 / 隐私说明 / 使用条款 / 源代码与许可（# 路由，GitHub Pages 直接可用）
-import { el, fmtSize, downloadBlob } from "./util.js";
+import { el, fmtSize, downloadBlob, savedPct } from "./util.js";
 import { FORMATS, KIND_LABEL, sniff } from "./formats.js";
 import { CAPABILITIES, COMPRESS, UNSUPPORTED_REASON, plan, targetsFor } from "./registry.js";
 import { SIZE_LIMIT, isMobile } from "./env.js";
 import { Queue, outputName } from "./queue.js";
-import { compressFile, convertFile, imagesToPdf } from "./jobs.js";
+import { compressFile, convertFile, imagesToPdf, estimateCompress } from "./jobs.js";
 import { describeMedia, probe } from "./media.js";
 import { SOURCE_URL, LIBRARIES } from "./about.js";
 
@@ -63,7 +63,7 @@ function compressPage() {
   let mode = "normal";
   let archiveOut = "";
   const list = el("ul.jobs");
-  const queue = new Queue(list, { onIdle: () => renderAll() });
+  const queue = new Queue(list, { onIdle: () => renderAll(), onChange: () => renderAll() });
   const pending = el("div.panel", { hidden: true });
   const allBox = el("div.row");
 
@@ -72,7 +72,7 @@ function compressPage() {
     seg("mode", [
       ["normal", "普通", "尽量不影响画质，肉眼基本看不出差别"],
       ["strong", "强力", "体积更小，但画质、清晰度会下降"],
-    ], mode, v => { mode = v; }),
+    ], mode, v => { mode = v; renderPending(); estimateAll(); }),
   );
   const archiveOpt = el("details.panel", { hidden: true },
     el("summary", "修改压缩包格式（默认保持原格式）"),
@@ -83,8 +83,38 @@ function compressPage() {
 
   async function addFiles(files) {
     const found = await identify(files);
-    items.push(...found);
+    items.push(...found.map(i => ({ ...i, est: {} })));
     renderPending();
+    estimateAll();
+  }
+
+  // 选好文件和强度后就预估压缩结果（逐个计算，算完一个刷新一次）
+  let estimating = false;
+  async function estimateAll() {
+    if (estimating) return;
+    estimating = true;
+    try {
+      for (;;) {
+        const it = items.find(i => COMPRESS[i.fmt] && !i.est[mode]);
+        if (!it) break;
+        const m = mode;
+        it.est[m] = { busy: true };
+        try { it.est[m] = await estimateCompress({ file: it.file, fmt: it.fmt, mode: m }); }
+        catch { it.est[m] = { failed: true }; }
+        renderPending();
+      }
+    } finally { estimating = false; }
+  }
+
+  function estimateLine(it) {
+    const e = it.est?.[mode];
+    if (!COMPRESS[it.fmt] || !e) return null;
+    if (e.busy) return el("p.estimate.hint", "正在估算压缩后的大小…");
+    if (e.failed) return el("p.estimate.hint", "无法预估，压缩后显示实际结果。");
+    if (e.text) return el("p.estimate", "预计：" + e.text);
+    if (e.bytes >= it.file.size * 0.97) return el("p.estimate", "预计：已经比较小，可能无法再压缩（压缩后不变小会返回原文件）。");
+    return el("p.estimate", "预计：", el("span.num", fmtSize(it.file.size)), " → 约 ", el("b.num", fmtSize(e.bytes)),
+      `（节省约 ${savedPct(it.file.size, e.bytes)}%）`, e.note ? "，" + e.note : "");
   }
 
   function renderPending() {
@@ -96,6 +126,7 @@ function compressPage() {
       el("ul.jobs", items.map((it, idx) => el("li.job",
         el("div.job-head", el("div.job-name", it.file.name), el("button.x", { type: "button", "aria-label": "移除", onclick: () => { items.splice(idx, 1); renderPending(); } }, "×")),
         el("div.job-meta", `${fmtSize(it.file.size)} · ${it.fmt ? FORMATS[it.fmt].label : "无法识别"}`),
+        estimateLine(it),
         COMPRESS[it.fmt] ? null : el("p.note.bad", it.fmt ? `${FORMATS[it.fmt].label} 首版还不能压缩。支持：图片（JPG、PNG、WebP、HEIC）、视频（MP4、MOV 等）、PDF、压缩包（ZIP、7Z、TAR、TAR.GZ、RAR）。` : "认不出这个文件的格式。"),
         sizeWarn(it.file)))),
       el("button.btn", { type: "button", disabled: !ok.length, onclick: start }, `开始压缩${ok.length > 1 ? `（${ok.length} 个）` : ""}`),
@@ -117,10 +148,7 @@ function compressPage() {
     renderAll();
   }
 
-  function renderAll() {
-    const done = queue.doneJobs();
-    allBox.replaceChildren(done.length > 1 ? el("button.btn.ghost", { type: "button", onclick: () => downloadAll(done) }, `全部打包下载（${done.length} 个，ZIP）`) : "");
-  }
+  function renderAll() { renderResultActions(queue, allBox); }
 
   return [
     el("h1", "文件压缩"),
@@ -137,7 +165,7 @@ function convertPage() {
   let filter = "";
   const opts = { gif: { start: 0, duration: 10, width: 480 }, frames: { every: 1 }, audioVideo: { mode: "cover", color: "#1d2b25" }, mergePdf: true };
   const list = el("ul.jobs");
-  const queue = new Queue(list, { onIdle: () => renderAll() });
+  const queue = new Queue(list, { onIdle: () => renderAll(), onChange: () => renderAll() });
   const panel = el("div.panel", { hidden: true });
   const allBox = el("div.row");
 
@@ -206,7 +234,10 @@ function convertPage() {
     const multi = paths.find(p => p.length > 1);
     if (multi) out.push(el("p.hint", "会分步完成：" + [multi[0].from, ...multi.map(s => s.to)].map(f => FORMATS[f].label).join(" → ")));
     for (const c of caps) if (c.loss) out.push(el("p.note.info", c.loss));
-    if (caps.some(c => c.run === "doc.convert")) out.push(el("p.hint", "文档转换组件约 16 MB，第一次使用需要下载，建议连着 Wi-Fi。"));
+    const viaPandoc = caps.some(c => c.run === "doc.convert") || (caps.some(c => c.run === "pdf.fromDoc") && fmts.some(f => ["md", "html", "txt", "epub", "odt"].includes(f)));
+    if (viaPandoc) out.push(el("p.hint", "文档转换组件约 16 MB，第一次使用需要下载，建议连着 Wi-Fi。"));
+    if (caps.some(c => c.run === "pdf.toWord")) out.push(el("p.hint", "扫描版 PDF 需要先下载约 8 MB 的文字识别组件，识别每页要几秒到十几秒。"));
+    if (caps.some(c => c.run === "can.convert")) out.push(el("p.hint", "第一次使用需要下载约 6 MB 的 Python 组件（python-can）。"));
     if (isMobile && caps.some(c => c.run.startsWith("media."))) out.push(el("p.hint", "处理期间请不要切到别的 App 或锁屏，否则可能中断。"));
     const need = caps.find(c => c.needs)?.needs;
     if (need === "gif") out.push(gifOptions());
@@ -272,10 +303,7 @@ function convertPage() {
     renderAll();
   }
 
-  function renderAll() {
-    const done = queue.doneJobs();
-    allBox.replaceChildren(done.length > 1 ? el("button.btn.ghost", { type: "button", onclick: () => downloadAll(done) }, `全部打包下载（${done.length} 个，ZIP）`) : "");
-  }
+  function renderAll() { renderResultActions(queue, allBox); }
 
   return [
     el("h1", "格式转换"),
@@ -291,6 +319,16 @@ const kindGroup = f => FORMATS[f]?.kind;
 // File 对象不能 structuredClone 进普通对象时退回浅拷贝
 function structuredCloneSafe(o) {
   return { gif: { ...o.gif }, frames: { ...o.frames }, audioVideo: { ...o.audioVideo }, mergePdf: o.mergePdf };
+}
+
+// 结果列表下方：全部打包下载、清空结果
+function renderResultActions(queue, box) {
+  const done = queue.doneJobs();
+  const finished = queue.finishedJobs();
+  box.replaceChildren(
+    done.length > 1 ? el("button.btn.ghost", { type: "button", onclick: () => downloadAll(done) }, `全部打包下载（${done.length} 个，ZIP）`) : "",
+    finished.length ? el("button.btn.ghost", { type: "button", onclick: () => queue.clearFinished() }, "清空结果") : "",
+  );
 }
 
 async function downloadAll(jobs) {

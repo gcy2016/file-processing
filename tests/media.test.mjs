@@ -2,7 +2,7 @@ import { createRequire } from "node:module"; import { writeFileSync, mkdirSync }
 const { chromium } = createRequire(import.meta.url)(process.env.PW || "playwright");
 const page = await (await chromium.launch()).newPage();
 page.on("pageerror", e => console.log("[pageerror]", e.message));
-await page.goto("http://localhost:8765/tests/harness.html");
+await page.goto((process.env.BASE || "http://localhost:8766/") + "tests/harness.html");
 await page.waitForFunction(() => window.ready);
 const cases = JSON.parse(process.argv[2]);
 mkdirSync("out", { recursive: true });
