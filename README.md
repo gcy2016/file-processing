@@ -67,7 +67,7 @@ tests/                测试样例生成脚本与自动化测试（Playwright）
 1. 代码需要放在**公开仓库**（AGPL 要求公开源代码；免费账号的私有仓库也不能开 Pages）。
 2. 仓库 Settings → Pages → Source 选 “Deploy from a branch”，分支选 main，目录选 `/ (root)`，保存。
 3. 几分钟后访问 `https://<用户名>.github.io/<仓库名>/`。
-4. 把 `js/about.js` 里的 `SOURCE_URL` 改成实际的公开仓库地址（页面底部“源代码与许可”会显示它）。
+4. 换仓库时，把 `js/about.js` 里的 `SOURCE_URL` 改成新的公开仓库地址（页面底部“源代码与许可”会显示它）。当前是 `gcy2016/workspace-12`。
 
 仓库里的 `pandoc.wasm` 约 56 MB，推送时 GitHub 会提示“超过 50 MB 建议值”，不影响使用（硬上限 100 MB）。
 

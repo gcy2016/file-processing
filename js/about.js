@@ -1,6 +1,6 @@
 // 源代码地址与第三方工具许可（"源代码与许可"页面用）
-// 上线前请改成实际公开的仓库地址
-export const SOURCE_URL = "https://github.com/gcy2016/compress-site";
+// 公开源代码仓库（AGPL 要求）
+export const SOURCE_URL = "https://github.com/gcy2016/workspace-12";
 
 // [名称, 项目地址, 用途, 许可]
 export const LIBRARIES = [
